@@ -1,4 +1,7 @@
 import numpy as np 
+from numpy import sqrt, exp, pi
+from numpy.special import erf
+from scipy.integrate import quad
 
 
 def sample_velocities_from_maxwellian_2d(T_x0, T_y0, N):
@@ -43,22 +46,16 @@ def assign_positions(velocities, L):
     
     return positions
 
-def compute_upper_bound_cross_section(velocities):
+def compute_upper_bound_cross_section(velocities: np.ndarray) -> float:
     """
-    Computes the upper bound of the cross section for each particle with velocity v_i in the array velocities in the shockwave profile simulation. Note that this
-    function assumes that C_alpha = 1 and alpha = 1.
-
-    Parameters
-    ----------
-    velocities : numpy array of particles velocities
-
-    Returns
-    -------
-    upper_bound_cross_section : numpy array of shape (N,1)
+    velocities: (N, 2) array for one cell.
+    Returns 2 * max_i ||v_i - mean(v)||.
     """
-    delta_v  = np.max(np.linalg.norm(velocities - np.mean(velocities,axis = 0)))
-
-    return 2 * delta_v
+    if velocities.size == 0:
+        return 0.0  # or np.nan, depending on how you want to treat empty cells
+    v_mean = velocities.mean(axis=0)                         # shape (2,)
+    delta_v = np.linalg.norm(velocities - v_mean, axis=1).max()
+    return 2.0 * delta_v
 
 def Iround(x):
     """
@@ -92,3 +89,194 @@ def compute_total_collisions_for_each_cell(particles_per_cell, rho, Sigma, delta
     total_collisions : int (expected total number of collisions)
     """
     return np.minimum(Iround((particles_per_cell * rho * delta_t * Sigma) / (2*epsilon)), particles_per_cell//2)
+
+def collide_particles(velocities, indices_i, indices_j):
+    """
+    Collides M particles with velocities given by the arraysv_i and v_j.
+
+    Parameters
+    ----------
+    velocities : numpy array of shape (N, 2)
+    indices_i : numpy array of shape (M,)
+    indices_j : numpy array of shape (M,)
+    """
+    v_i = velocities[indices_i]
+    v_j = velocities[indices_j]
+
+    v_rel = v_i - v_j                      
+    v_rel_mag = np.linalg.norm(v_rel, axis=1, keepdims=True)  
+
+    theta = np.random.uniform(0.0, 2.0*np.pi, size=len(indices_i))
+    omega = np.column_stack((np.cos(theta), np.sin(theta))) 
+
+    v_cm = 0.5 * (v_i + v_j)
+
+    v_i_prime = v_cm + 0.5 * v_rel_mag * omega
+    v_j_prime = v_cm - 0.5 * v_rel_mag * omega
+
+    velocities[indices_i] = v_i_prime
+    velocities[indices_j] = v_j_prime
+
+    return velocities
+
+def _phi(z):  # standard normal pdf
+    return np.exp(-0.5*z*z)/np.sqrt(2*np.pi)
+
+def _Phi(z):  # standard normal cdf
+    return 0.5*(1.0 + erf(z/np.sqrt(2.0)))
+
+def _sample_vx_incoming(N, u, T):
+    """
+    Sample x-velocities from the half-range flux-weighted Maxwellian:
+        p(x) ∝ x * exp(-(x - u)^2 / (2T)),   x > 0
+    via inverse transform + Newton on the closed-form CDF.
+    """
+    sig = np.sqrt(T)
+    U = np.random.rand(N)
+
+    if abs(u) < 1e-12:
+        # Rayleigh (exact): x = sqrt(-2 T ln(1-U))
+        return np.sqrt(-2.0*T*np.log1p(-U))
+
+    a = u/sig
+    Phi_a = _Phi(a)
+    exp_a = np.exp(-0.5*a*a)
+
+    # normalizer C = u*sig*sqrt(2π)*Phi(a) + sig^2*exp(-a^2/2)
+    C = u*sig*np.sqrt(2*np.pi)*Phi_a + sig*sig*exp_a
+
+    # good initial guess: shifted Rayleigh
+    x = np.maximum(0.0, u) + sig*np.sqrt(-2.0*np.log1p(-U))
+
+    # Newton iterations (3–6 is plenty)
+    Phi_neg_a = _Phi(-a)
+    for _ in range(6):
+        z = (x - u)/sig
+        Phi_z = _Phi(z)
+        exp_z = np.exp(-0.5*z*z)
+
+        # CDF G(x)
+        G = (u*sig*np.sqrt(2*np.pi)*(Phi_z - Phi_neg_a) - sig*sig*(exp_z - exp_a)) / C
+        # derivative G'(x)
+        Gp = (x * exp_z) / C
+
+        # Newton step
+        x_new = x - (G - U)/Gp
+        # keep in domain
+        x = np.maximum(x_new, 0.0)
+
+    return x
+
+def sample_from_flux_weighted_maxwellian_left(N, meanV, T):
+    """
+    Incoming from the LEFT boundary → v_x > 0 with drift u = meanV.
+    v_y is independent ~ N(0, T).
+    """
+    vx = _sample_vx_incoming(N, meanV, T)          # x > 0
+    vy = np.random.normal(0.0, np.sqrt(T), N)
+    return np.column_stack((vx, vy))
+
+def sample_from_flux_weighted_maxwellian_right(N, meanV, T):
+    """
+    Incoming from the RIGHT boundary → v_x < 0.
+    Equivalent to sampling x>0 with drift -u and then negating.
+    """
+    vx_pos = _sample_vx_incoming(N, -meanV, T)     # x > 0 with drift -u
+    vx = -vx_pos                                   # make negative
+    vy = np.random.normal(0.0, np.sqrt(T), N)
+    return np.column_stack((vx, vy))
+
+def expected_new_particles_left(S, dt, rho, meanV, T):
+    sigma = np.sqrt(T)
+    a = meanV / sigma
+    return S * dt * rho * (meanV * _Phi(a) + sigma * _phi(a))
+
+def expected_new_particles_right(S, dt, rho, meanV, T):
+    sigma = np.sqrt(T)
+    a = meanV / sigma
+    return S * dt * rho * (sigma * _phi(a) - meanV * _Phi(-a))
+
+def sample_particle_indices_to_collide(Nc, cell_velocities):
+    """
+    Sample indices of velocity pairs from each cell using np.random.choice.
+    
+    Parameters
+    ----------
+    Nc : array-like of int
+        Number of samples to draw from each cell (len(Nc) must match len(cell_velocities)).
+    cell_velocities : list of np.ndarray
+        Each element is a 2D NumPy array of shape (num_pairs, dim)
+        containing velocity pairs for that cell.
+
+    Returns
+    -------
+    sampled_indices : list of np.ndarray
+        List of sampled index arrays (ragged, different lengths possible).
+    """
+    if len(Nc) != len(cell_velocities):
+        raise ValueError("Length of Nc must match number of cells in cell_velocities")
+
+    sampled_indices = []
+    for g, k in zip(cell_velocities, Nc):
+        if k > g.shape[0]:
+            raise ValueError(f"Cannot sample {k} from group with {g.shape[0]} rows")
+        idx = np.random.choice(g.shape[0], size=2*k, replace=False)
+        sampled_indices.append(idx)
+    
+    return sampled_indices
+
+def pair_particle_indices(sampled_indices):
+    """
+    Randomly pair up sampled indices for each cell.
+
+    Parameters
+    ----------
+    sampled_indices : list of np.ndarray
+        Each element is a 1D NumPy array of even length containing sampled indices.
+
+    Returns
+    -------
+    paired : list of np.ndarray
+        List of 2D arrays where each row is a pair of indices.
+    """
+    paired = []
+    for idx in sampled_indices:
+        if len(idx) % 2 != 0:
+            raise ValueError("Number of indices must be even to form pairs.")
+
+        shuffled = np.random.permutation(idx)        # random shuffle
+        pairs = shuffled.reshape(-1, 2)              # group into pairs
+        paired.append(pairs)
+
+    return paired
+
+def split_pairs(paired_indices):
+    """
+    Split paired indices into two arrays: first indices and second indices.
+
+    Parameters
+    ----------
+    paired_indices : list of np.ndarray
+        Each element is a 2D NumPy array of shape (num_pairs, 2).
+
+    Returns
+    -------
+    first_indices : list of np.ndarray
+        List of column vectors containing the first index from each pair.
+    second_indices : list of np.ndarray
+        List of column vectors containing the second index from each pair.
+    """
+    first_indices = []
+    second_indices = []
+    
+    for pairs in paired_indices:
+        first_indices.append(pairs[:, 0].reshape(-1, 1))
+        second_indices.append(pairs[:, 1].reshape(-1, 1))
+    
+    return np.array(first_indices), np.array(second_indices)
+
+
+def ArraySigma_VHS(v):
+    Constant = 1.0
+    alpha = 1
+    return Constant * np.power(v, alpha)
