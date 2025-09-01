@@ -120,8 +120,8 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
 
         positions, velocities = ib.inflow_boundary(
             positions, velocities, L,
-            u_left, u_right, T_left,
-            dt, S, dx, rho_left
+            u_left, u_right, T_left, T_right,
+            dt, S, dx, rho_left, rho_right
         )
 
 
