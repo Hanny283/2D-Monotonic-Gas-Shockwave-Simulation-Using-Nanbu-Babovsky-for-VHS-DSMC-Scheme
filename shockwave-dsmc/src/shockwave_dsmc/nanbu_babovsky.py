@@ -7,7 +7,7 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
 
 
 # Sampe velocities from a 2d maxwellian distribution
-    velocities = hf.sample_velocities_from_maxwellian_2d(T_x0, T_y0, N)
+    velocities = hf.sample_velocities_from_maxwellian_2d(T_left, T_left, N)
 
 # assign each velocity a position in the spatial domain (this means positions and velocities have the same length)
     positions = hf.assign_positions(velocities, L)

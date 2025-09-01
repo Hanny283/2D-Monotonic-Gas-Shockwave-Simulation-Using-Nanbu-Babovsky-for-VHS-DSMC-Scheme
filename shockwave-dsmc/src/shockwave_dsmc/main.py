@@ -52,72 +52,15 @@ def main():
     rho_L, u_L, T_L,
     rho_R, u_R, T_R   # <-- add this
     )
-    print(f"Parameters:")
-    print(f"  T_x0: {T_x0}")
-    print(f"  T_y0: {T_y0}")
-    print(f"  rho: {rho}")
-    print(f"  mu: {mu}")
-    print(f"  alpha: {alpha}")
-    print(f"  S: {S}")
-    print(f"  L: {L}")
-    print(f"  num_cells: {num_cells}")
-    print(f"  dx: {dx}")
-    print(f"  N: {N}")
-    print(f"  dt: {dt}")
-    print(f"  n_tot: {n_tot}")
-    print(f"  e: {e}")
-    print(f"  M: {M}")
-    print(f"  gamma: {gamma}")
-    print(f"  ux: {ux}")
-    print(f"  uy: {uy}")
-    print(f"  meanV_left: {meanV_left}")
-    print(f"  meanV_right: {meanV_right}")
-    print()
-    
-    try:
-        # Run the simulation
-        print("Running simulation...")
-        density, temp, mean_velocity = Nanbu_Babovsky_VHS_ShockWave(
-            T_x0=T_x0,
-            T_y0=T_y0,
-            N=N,
-            dt=dt,
-            n_tot=n_tot,
-            e=e,
-            mu=mu,
-            rho=rho,
-            L=L,
-            alpha=alpha,
-            S=S,
-            dx=dx,
-            meanV_left=meanV_left,
-            meanV_right=meanV_right,
-            num_cells=num_cells
-        )
-        
-        print("Simulation completed successfully!")
-        print(f"Results shape:")
-        print(f"  density: {density.shape}")
-        print(f"  temp: {temp.shape}")
-        print(f"  mean_velocity: {mean_velocity.shape}")
-        print()
-        
-        # Plot the results
-        print("Creating plots...")
-        fig = plot_shockwave_profile(density, temp, mean_velocity, num_cells, L)
-        
-        print("Plotting completed!")
-        
-        # Optional: Save the figure
-        # fig.savefig('shockwave_profile.png', dpi=300, bbox_inches='tight')
-        # print("Figure saved as 'shockwave_profile.png'")
-        
-    except Exception as e:
-        print(f"Error during simulation: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
-    
+
+    print("Running simulation...")
+        # (we already called the solver above and got density/temp/mean_velocity)
+    print("Simulation completed successfully!")
+    print(f"Results shape: density={density.shape}, temp={temp.shape}, mean_velocity={mean_velocity.shape}")
+
+    print("Creating plots...")
+    fig = plot_shockwave_profile(density, temp, mean_velocity, num_cells, L)
+    print("Plotting completed!")
     return 0
 
 if __name__ == "__main__":
