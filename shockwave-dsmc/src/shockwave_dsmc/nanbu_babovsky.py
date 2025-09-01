@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import helpers as hf
 import inflow_bc as ib
 
-def Nanbu_Babovsky_VHS_ShockWave(T_x0, T_y0, N, dt, n_tot, e, mu, rho, L, alpha, S, dx, meanV_left, meanV_right, num_cells):
+def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx, rho_left, u_left, T_left, rho_right, u_right, T_right):
 
-   
+
 # Sampe velocities from a 2d maxwellian distribution
     velocities = hf.sample_velocities_from_maxwellian_2d(T_x0, T_y0, N)
 
