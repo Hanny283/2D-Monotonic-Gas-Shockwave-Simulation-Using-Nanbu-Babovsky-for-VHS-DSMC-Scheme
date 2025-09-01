@@ -12,6 +12,18 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
 # assign each velocity a position in the spatial domain (this means positions and velocities have the same length)
     positions = hf.assign_positions(velocities, L)
 
+# add drifts and temperatures piecewise at t=0
+    left_mask  = (positions < L/2)
+    right_mask = ~left_mask
+
+    # resample speeds to the correct T side (keeps your helpers)
+    velocities[left_mask]  = hf.sample_velocities_from_maxwellian_2d(T_left,  T_left,  left_mask.sum())
+    velocities[right_mask] = hf.sample_velocities_from_maxwellian_2d(T_right, T_right, right_mask.sum())
+
+    # add drift to vx
+    velocities[left_mask, 0]  += u_left
+    velocities[right_mask, 0] += u_right
+
 # discretize the spatial domain into cells
     cell_width = L / num_cells
 
@@ -36,7 +48,7 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
     averaging_count = 0
     t = 0.0
 
-    w = rho_left * S * dx / (N / num_cells)
+    w = 1.0 * S * dx / (N / num_cells)   # reference ρ = 1 on the right
 
 
 
@@ -51,14 +63,14 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
         for cell in cell_velocities
         ])
 
-        n_local = particles_per_cell / (S * dx)   # per-cell number density estimate
+        # physical number density per cell: ρ_c = w * N_c / (S*dx)
+        rho_cell = (w * particles_per_cell) / (S * dx)
 
-    # calculate the expected number of collisions for each cell 
+        # expected tested pairs per cell (NB):
         Nc = np.minimum(
-            hf.Iround((particles_per_cell * n_local * dt * upper_bound_cross_sections) / (2*e)),
+            hf.Iround((particles_per_cell * rho_cell * dt * upper_bound_cross_sections) / (2*e)),
             particles_per_cell // 2
         )
-
 
     # gets indices of particles to collide 
         sampled_indices = hf.sample_particle_indices_to_collide(Nc, cell_velocities)
@@ -236,6 +248,10 @@ def plot_shockwave_profile(density, temp, mean_velocity, num_cells, L):
     ax1.grid(True, alpha=0.3)
     ax1.set_xlim(-4.5, 4.5)
     
+    
+
+# Temperature panel (left ~4.75 to right ~1.0)
+    
     # Plot temperature
     ax2.plot(x_coords, temp_subset, 'r-', linewidth=2, marker='s', markersize=4)
     ax2.set_xlabel('Position')
@@ -243,14 +259,17 @@ def plot_shockwave_profile(density, temp, mean_velocity, num_cells, L):
     ax2.set_title('Shockwave Temperature Profile')
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim(-4.5, 4.5)
+    ax2.set_ylim(0.9, 4.9)
     
-    # Plot mean velocity components
-    ax3.plot(x_coords, mean_velocity_subset[:, 0], 'g-', linewidth=2, marker='^', markersize=4, label='v_x')
-    ax3.plot(x_coords, mean_velocity_subset[:, 1], 'm-', linewidth=2, marker='v', markersize=4, label='v_y')
+   # Plot mean velocity u_x only (paper shows x-component; u_y ≈ 0)
+    ax3.plot(x_coords, mean_velocity_subset[:, 0], linewidth=2, marker='^', markersize=4)
     ax3.set_xlabel('Position')
-    ax3.set_ylabel('Mean Velocity')
+    ax3.set_ylabel('Mean Velocity $u_x$')
     ax3.set_title('Shockwave Mean Velocity Profile')
-    ax3.legend()
+
+    # paper-like y-range (γ=2, M=3): u_x goes from about -1.7 (left) to -4.24 (right)
+    ax3.set_ylim(-4.5, -1.5)
+
     ax3.grid(True, alpha=0.3)
     ax3.set_xlim(-4.5, 4.5)
     

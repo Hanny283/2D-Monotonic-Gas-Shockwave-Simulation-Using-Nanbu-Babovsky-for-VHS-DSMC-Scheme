@@ -8,22 +8,23 @@ def main():
     """
     print("Starting Nanbu-Babovsky VHS ShockWave simulation...")
 
-    # ----- Physical / model params -----
-    gamma = 2.0      # 2D monoatomic gas in velocity space (paper)
-    M     = 3.0      # upstream Mach number used in RH relations
+    gamma = 2.0
+    M = 3.0
 
-    # Downstream (RIGHT) macrostates fixed by the paper:
+    # Upstream/right (state 1) – this is the paper’s reference state
     rho_R = 1.0
     T_R   = 1.0
-    u_R   = -M * np.sqrt(gamma * T_R)   # flow to the left
+    u_R   = -M * np.sqrt(gamma * T_R)     # ≈ -4.2426
 
-    # Upstream (LEFT) macrostates from Rankine–Hugoniot (using upstream Mach = M)
-    r = ((gamma + 1.0) * M**2) / ((gamma - 1.0) * M**2 + 2.0)                  # rho2/rho1
+    # Rankine–Hugoniot for γ=2, using upstream Mach M:
+    r = ((gamma + 1.0) * M**2) / ((gamma - 1.0) * M**2 + 2.0)         # ρ2/ρ1
     T2_over_T1 = ((2*gamma*M**2 - (gamma - 1.0)) * ((gamma - 1.0)*M**2 + 2.0)) / ((gamma + 1.0)**2 * M**2)
 
-    rho_L = rho_R / r
-    T_L   = T_R / T2_over_T1
-    u_L   = (rho_R / rho_L) * u_R   # continuity: rho_L*u_L = rho_R*u_R  -> u_L = r*u_R
+    # Downstream/left (state 2)
+    rho_L = r * rho_R                      # ≈ 2.4545
+    T_L   = T2_over_T1 * T_R               # ≈ 4.7531
+    u_L   = (rho_R / rho_L) * u_R          # u2 = (ρ1/ρ2) u1  ≈ -1.73
+
 
     # For your code paths that still expect these names:
     meanV_left  = u_L
