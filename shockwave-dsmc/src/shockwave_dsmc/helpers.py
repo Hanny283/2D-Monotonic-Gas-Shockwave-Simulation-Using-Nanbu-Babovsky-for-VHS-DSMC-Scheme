@@ -1,6 +1,6 @@
 import numpy as np 
 from numpy import sqrt, exp, pi
-from numpy.special import erf
+from scipy.special import erf
 from scipy.integrate import quad
 
 
@@ -186,69 +186,68 @@ def sample_from_flux_weighted_maxwellian_right(N, meanV, T):
     vy = np.random.normal(0.0, np.sqrt(T), N)
     return np.column_stack((vx, vy))
 
-def expected_new_particles_left(S, dt, rho, meanV, T):
-    sigma = np.sqrt(T)
-    a = meanV / sigma
-    return S * dt * rho * (meanV * _Phi(a) + sigma * _phi(a))
+def expected_new_particles_left(S, dx, dt, rho_L, u_L, T_L):
+    sigma = np.sqrt(T_L)
+    a = u_L / sigma
+    return S * dx * dt * rho_L * (u_L * _Phi(a) + sigma * _phi(a))
 
-def expected_new_particles_right(S, dt, rho, meanV, T):
-    sigma = np.sqrt(T)
-    a = meanV / sigma
-    return S * dt * rho * (sigma * _phi(a) - meanV * _Phi(-a))
+def expected_new_particles_right(S, dx, dt, rho_R, u_R, T_R):
+    sigma = np.sqrt(T_R)
+    a = u_R / sigma
+    return S * dx * dt * rho_R * (sigma * _phi(a) - u_R * _Phi(-a))
 
 def sample_particle_indices_to_collide(Nc, cell_velocities):
     """
-    Sample indices of velocity pairs from each cell using np.random.choice.
-    
-    Parameters
-    ----------
-    Nc : array-like of int
-        Number of samples to draw from each cell (len(Nc) must match len(cell_velocities)).
-    cell_velocities : list of np.ndarray
-        Each element is a 2D NumPy array of shape (num_pairs, dim)
-        containing velocity pairs for that cell.
-
-    Returns
-    -------
-    sampled_indices : list of np.ndarray
-        List of sampled index arrays (ragged, different lengths possible).
+    Returns: list of 1-D int arrays (per-cell).
     """
+    Nc = np.asarray(Nc, dtype=int)
     if len(Nc) != len(cell_velocities):
         raise ValueError("Length of Nc must match number of cells in cell_velocities")
 
     sampled_indices = []
     for g, k in zip(cell_velocities, Nc):
-        if k > g.shape[0]:
-            raise ValueError(f"Cannot sample {k} from group with {g.shape[0]} rows")
-        idx = np.random.choice(g.shape[0], size=2*k, replace=False)
-        sampled_indices.append(idx)
-    
+        if k < 0:
+            raise ValueError("k must be nonnegative")
+        if 2 * k > g.shape[0]:
+            raise ValueError(f"Cannot sample {2*k} from group with {g.shape[0]} rows")
+        # always a 1-D int array (possibly empty if k == 0)
+        idx = np.random.choice(g.shape[0], size=2 * k, replace=False)
+        sampled_indices.append(idx.astype(int))
     return sampled_indices
 
 def pair_particle_indices(sampled_indices):
     """
-    Randomly pair up sampled indices for each cell.
-
-    Parameters
-    ----------
-    sampled_indices : list of np.ndarray
-        Each element is a 1D NumPy array of even length containing sampled indices.
-
-    Returns
-    -------
-    paired : list of np.ndarray
-        List of 2D arrays where each row is a pair of indices.
+    Accepts:
+      - list of 1-D arrays (preferred), OR
+      - a single 1-D int array (treated as one cell)
+    Returns:
+      list of (n_pairs, 2) int arrays
     """
+    # Normalize input to a list of 1-D arrays
+    if isinstance(sampled_indices, np.ndarray) and sampled_indices.dtype != object:
+        # If it's a flat 1-D int array, wrap as one cell
+        if sampled_indices.ndim == 1 and np.issubdtype(sampled_indices.dtype, np.integer):
+            arrays = [sampled_indices]
+        else:
+            arrays = list(sampled_indices)  # best effort
+    else:
+        arrays = list(sampled_indices)
+
     paired = []
-    for idx in sampled_indices:
-        if len(idx) % 2 != 0:
+    for idx in arrays:
+        idx = np.asarray(idx)
+        if idx.ndim == 0:            # scalar -> make it length-1
+            idx = idx.reshape(1)
+        if idx.size == 0:            # nothing to pair
+            paired.append(idx.reshape(0, 2))
+            continue
+        if idx.size % 2 != 0:
             raise ValueError("Number of indices must be even to form pairs.")
-
-        shuffled = np.random.permutation(idx)        # random shuffle
-        pairs = shuffled.reshape(-1, 2)              # group into pairs
-        paired.append(pairs)
-
+        shuffled = np.random.permutation(idx)
+        pairs = shuffled.reshape(-1, 2)
+        paired.append(pairs.astype(int))
     return paired
+
 
 def split_pairs(paired_indices):
     """
@@ -266,17 +265,19 @@ def split_pairs(paired_indices):
     second_indices : list of np.ndarray
         List of column vectors containing the second index from each pair.
     """
-    first_indices = []
-    second_indices = []
-    
+    first, second = [], []
     for pairs in paired_indices:
-        first_indices.append(pairs[:, 0].reshape(-1, 1))
-        second_indices.append(pairs[:, 1].reshape(-1, 1))
-    
-    return np.array(first_indices), np.array(second_indices)
+        first.append(pairs[:, 0])   # 1-D
+        second.append(pairs[:, 1])  # 1-D
+    return first, second
 
 
 def ArraySigma_VHS(v):
     Constant = 1.0
     alpha = 1
     return Constant * np.power(v, alpha)
+
+def update_positions(positions, velocities, dt):
+    # positions: (N,), velocities: (N,2)
+    # advance only along x with vx
+    return positions + velocities[:, 0] * dt

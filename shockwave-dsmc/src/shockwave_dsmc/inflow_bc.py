@@ -4,31 +4,45 @@ import numpy as np
 def inflow_boundary(positions, velocities, L, meanV_left, meanV_right, Tx, dt, S, dx, rho):
     """ Updates particle positions and velocities using inflow boundary conditions. """
 
-   # Compute expected number of incoming particles at left and right boundaries
-    newExpectedLeft = hf.expected_new_particles_left(S, dx, dt, rho, meanV_left, Tx)
+    # expected new particles (Eq. 65) – already includes dx
+    newExpectedLeft  = hf.expected_new_particles_left(S, dx, dt, rho, meanV_left,  Tx)
     newExpectedRight = hf.expected_new_particles_right(S, dx, dt, rho, meanV_right, Tx)
 
-    # Track particles that left the domain
+    # particles that left the domain
     particlesLost = np.logical_or(positions < 0, positions > L)
-    Nlost = np.sum(particlesLost)  # Number of particles lost
+    Nlost = int(np.sum(particlesLost))
 
-    # Split new particles based on left/right inflow
-    actualLeft = hf.Iround(newExpectedLeft * Nlost / (newExpectedLeft + newExpectedRight))
-    actualRight = Nlost - actualLeft
+    # nothing to replace
+    if Nlost == 0:
+        return positions, velocities
 
-    # Sample new velocities for inflow particles
-    new_velocitiesLeft = hf.sample_from_flux_weighted_maxwellian_left(actualLeft, meanV_left, Tx)
+    # constant-N split (paper p.71), robust to denom ≈ 0
+    denom = newExpectedLeft + newExpectedRight
+    share_left = newExpectedLeft / (denom + 1e-30)
+    actualLeft  = int(hf.Iround(np.array([share_left * Nlost]))[0])
+    actualRight = int(Nlost - actualLeft)
+
+    # sample inflow velocities
+    new_velocitiesLeft  = hf.sample_from_flux_weighted_maxwellian_left(actualLeft,  meanV_left,  Tx)
     new_velocitiesRight = hf.sample_from_flux_weighted_maxwellian_right(actualRight, meanV_right, Tx)
 
-    # Assign new positions
-    new_positionsL = np.zeros(actualLeft) + new_velocitiesLeft[:, 0] * dt * np.random.rand(actualLeft)
-    new_positionsR = np.full(actualRight, L) + new_velocitiesRight[:, 0] * dt * np.random.rand(actualRight)
+    # place new particles: x* = b + vx* dt * ξ  (b=0 left, b=L right)
+    if actualLeft > 0:
+        new_positionsL = np.zeros(actualLeft) + new_velocitiesLeft[:, 0] * dt * np.random.rand(actualLeft)
+    else:
+        new_positionsL = np.empty(0, dtype=positions.dtype)
 
-    # Remove lost particles and add new ones
-    positions = np.delete(positions, np.where(particlesLost))
-    velocities = np.delete(velocities, np.where(particlesLost), axis=0)
+    if actualRight > 0:
+        new_positionsR = np.full(actualRight, L) + new_velocitiesRight[:, 0] * dt * np.random.rand(actualRight)
+    else:
+        new_positionsR = np.empty(0, dtype=positions.dtype)
 
-    positions = np.concatenate((positions, new_positionsL, new_positionsR))
+    # remove lost, then append replacements
+    keep = ~particlesLost
+    positions  = positions[keep]
+    velocities = velocities[keep]
+
+    positions  = np.concatenate((positions,  new_positionsL, new_positionsR))
     velocities = np.concatenate((velocities, new_velocitiesLeft, new_velocitiesRight))
 
     return positions, velocities
