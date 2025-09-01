@@ -16,7 +16,7 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
     left_mask  = (positions < L/2)
     right_mask = ~left_mask
 
-    # resample speeds to the correct T side (keeps your helpers)
+    # resample speeds to the correct T side
     velocities[left_mask]  = hf.sample_velocities_from_maxwellian_2d(T_left,  T_left,  left_mask.sum())
     velocities[right_mask] = hf.sample_velocities_from_maxwellian_2d(T_right, T_right, right_mask.sum())
 
@@ -66,7 +66,7 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
         # physical number density per cell: ρ_c = w * N_c / (S*dx)
         rho_cell = (w * particles_per_cell) / (S * dx)
 
-        # expected tested pairs per cell (NB):
+        # expected tested pairs per cell:
         Nc = np.minimum(
             hf.Iround((particles_per_cell * rho_cell * dt * upper_bound_cross_sections) / (2*e)),
             particles_per_cell // 2
@@ -101,23 +101,22 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
     #collision step 
         if len(indices_i) > 0 and len(indices_j) > 0:
 
-            # --- FORCE 1-D SHAPES ---
             indices_i = np.asarray(indices_i).reshape(-1)
             indices_j = np.asarray(indices_j).reshape(-1)
 
-            # relative speed per pair -> (M,)
+            # relative speed per pair 
             v_rel = velocities[indices_j] - velocities[indices_i]      # (M, 2)
             v_rel_mag = np.linalg.norm(v_rel, axis=1)                  # (M,)
 
-            # per-pair sigma(v) -> (M,)
+            # pair's sigma(v)
             sigma_ij = hf.ArraySigma_VHS(v_rel_mag).reshape(-1)        # (M,)
 
-            # per-pair Sigma (cell upper bound) -> (M,)
+            # cell upper bounds
             Sigma_pairs = upper_bound_cross_sections[
                 particle_cell_indices[indices_i]
             ].reshape(-1)                                              # (M,)
 
-            # acceptance mask -> (M,)
+            # acceptance mask
             u = np.random.rand(indices_i.size) * Sigma_pairs           # (M,)
             accept_condition = u < sigma_ij                            # (M,)
 
@@ -153,7 +152,7 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
 
         t += dt
 
-        # start accumulating after t>5, and cap ~8000 samples (per the paper)
+        # start accumulating after t>5, and cap ~8000 samples
         if t > 5.0 and averaging_count < 8000:
             n_inst = np.zeros(num_cells)
             T_inst = np.zeros(num_cells)

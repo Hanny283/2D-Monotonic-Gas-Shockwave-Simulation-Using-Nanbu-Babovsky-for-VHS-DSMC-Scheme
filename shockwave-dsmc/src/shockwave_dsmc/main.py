@@ -26,7 +26,7 @@ def main():
     u_L   = (rho_R / rho_L) * u_R          # u2 = (ρ1/ρ2) u1  ≈ -1.73
 
 
-    # For your code paths that still expect these names:
+    
     meanV_left  = u_L
     meanV_right = u_R
     T_x0 = T_L        # use left temperature where a single T is required
@@ -40,22 +40,21 @@ def main():
 
     # ~500 particles per cell (paper): total N ≈ 50*500 = 25_000
     N   = 25_000
-    dt  = 0.025                    # Fig. 9 uses Δt = 0.025 for TRMC; good starting value for NB too
+    dt  = 0.0025                    # Fig. 9 uses Δt = 0.025 for TRMC; good starting value for NB too
     n_tot = 8000                   # average over long window as in paper
     e   = 1.0                      # rarefied regime ε = 1.0
     mu  = 1.0
     alpha = 1.0
 
-    # >>> call your solver; if you've updated inflow_boundary to use left/right states, prefer that API:
+    
     density, temp, mean_velocity = Nanbu_Babovsky_VHS_ShockWave(
     N, dt, n_tot, e, mu, alpha,
     L, num_cells, S, dx,
     rho_L, u_L, T_L,
-    rho_R, u_R, T_R   # <-- add this
+    rho_R, u_R, T_R   
     )
 
     print("Running simulation...")
-        # (we already called the solver above and got density/temp/mean_velocity)
     print("Simulation completed successfully!")
     print(f"Results shape: density={density.shape}, temp={temp.shape}, mean_velocity={mean_velocity.shape}")
 

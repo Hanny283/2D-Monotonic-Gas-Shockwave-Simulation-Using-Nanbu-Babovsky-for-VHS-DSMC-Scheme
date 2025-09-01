@@ -6,7 +6,7 @@ def inflow_boundary(positions, velocities, L,
                     dt, S, dx, rho_left, rho_right):
     """ Updates particle positions and velocities using inflow boundary conditions. """
 
-    # expected new particles (Eq. 65) – already includes dx
+    # expected new particles 
     newExpectedLeft  = hf.expected_new_particles_left(S, dx, dt, rho_left,  meanV_left,  T_left)
     newExpectedRight = hf.expected_new_particles_right(S, dx, dt, rho_right, meanV_right, T_right)
 
@@ -18,7 +18,7 @@ def inflow_boundary(positions, velocities, L,
     if Nlost == 0:
         return positions, velocities
 
-    # constant-N split (paper p.71), robust to denom ≈ 0
+    # constant-N split 
     denom = newExpectedLeft + newExpectedRight
     share_left = newExpectedLeft / (denom + 1e-30)
     actualLeft  = int(hf.Iround(np.array([share_left * Nlost]))[0])
