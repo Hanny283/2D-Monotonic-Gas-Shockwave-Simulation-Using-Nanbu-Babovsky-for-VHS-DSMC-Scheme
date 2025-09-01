@@ -47,11 +47,10 @@ def main():
 
     # >>> call your solver; if you've updated inflow_boundary to use left/right states, prefer that API:
     density, temp, mean_velocity = Nanbu_Babovsky_VHS_ShockWave(
-        T_x0, T_y0, N, dt, n_tot, e, mu,
-        rho_R,                # keep if a single 'rho' is still required somewhere; not used for inflow
-        L, alpha, S, dx,
-        meanV_left, meanV_right,  # these now carry u_L, u_R
-        num_cells
+    N, dt, n_tot, e, mu, alpha,
+    L, num_cells, S, dx,
+    rho_L, u_L, T_L,
+    rho_R, u_R, T_R   # <-- add this
     )
     print(f"Parameters:")
     print(f"  T_x0: {T_x0}")
