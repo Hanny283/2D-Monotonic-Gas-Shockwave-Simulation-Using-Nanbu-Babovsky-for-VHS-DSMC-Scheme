@@ -274,6 +274,13 @@ def plot_shockwave_profile(density, temp, mean_velocity, num_cells, L):
     
     # Adjust layout and display
     plt.tight_layout()
+    
+    # Save the figure to data/figures directory
+    import os
+    os.makedirs('../../data/figures', exist_ok=True)
+    plt.savefig('../../data/figures/shockwave_profile.png', dpi=300, bbox_inches='tight')
+    print("Figure saved as 'data/figures/shockwave_profile.png'")
+    
     plt.show()
     
     return fig
