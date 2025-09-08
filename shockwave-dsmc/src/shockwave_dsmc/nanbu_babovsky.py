@@ -12,17 +12,19 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
 # assign each velocity a position in the spatial domain (this means positions and velocities have the same length)
     positions = hf.assign_positions(velocities, L)
 
-# add drifts and temperatures piecewise at t=0
-    left_mask  = (positions < L/2)
+    # --- piecewise initial Maxwellians (left: upstream; right: downstream)
+    left_mask  = (positions < 0.5 * L)
     right_mask = ~left_mask
 
-    # resample speeds to the correct T side
-    velocities[left_mask]  = hf.sample_velocities_from_maxwellian_2d(T_left,  T_left,  left_mask.sum())
-    velocities[right_mask] = hf.sample_velocities_from_maxwellian_2d(T_right, T_right, right_mask.sum())
+    velocities = np.empty((N, 2), dtype=float)
 
-    # add drift to vx
-    velocities[left_mask, 0]  += u_left
-    velocities[right_mask, 0] += u_right
+    # LEFT half: mean u_left, temperature T_left
+    velocities[left_mask, 0] = np.random.normal(u_left, np.sqrt(T_left), left_mask.sum())
+    velocities[left_mask, 1] = np.random.normal(0.0,   np.sqrt(T_left), left_mask.sum())
+
+    # RIGHT half: mean u_right, temperature T_right
+    velocities[right_mask, 0] = np.random.normal(u_right, np.sqrt(T_right), right_mask.sum())
+    velocities[right_mask, 1] = np.random.normal(0.0,     np.sqrt(T_right), right_mask.sum())
 
 # discretize the spatial domain into cells
     cell_width = L / num_cells

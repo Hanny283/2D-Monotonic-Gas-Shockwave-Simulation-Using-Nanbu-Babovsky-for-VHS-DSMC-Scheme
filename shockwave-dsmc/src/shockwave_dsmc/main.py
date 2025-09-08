@@ -42,7 +42,7 @@ def main():
     N   = 25_000
     dt  = 0.0025                    # Fig. 9 uses Δt = 0.025 for TRMC; good starting value for NB too
     n_tot = 8000                   # average over long window as in paper
-    e   = 1.0                      # rarefied regime ε = 1.0
+    e   = 10e-8                   # rarefied regime ε = 1.0
     mu  = 1.0
     alpha = 1.0
 
