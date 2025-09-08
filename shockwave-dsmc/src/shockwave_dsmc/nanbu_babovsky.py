@@ -28,6 +28,8 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
 
 # discretize the spatial domain into cells
     cell_width = L / num_cells
+    x_centers  = (np.arange(num_cells) + 0.5) * cell_width - 0.5 * L  # [-L/2, L/2]
+
 
 #assign each particle position an index that corresponds to a cell 
     particle_cell_indices = np.floor(positions / cell_width).astype(int)
@@ -58,7 +60,7 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
 
     for n in range(n_tot):
 
-
+x
     # compute an upper bound cross section for each cell 
         upper_bound_cross_sections = np.array([
         hf.compute_upper_bound_cross_section(cell) if len(cell) else 0.0
@@ -197,98 +199,61 @@ def Nanbu_Babovsky_VHS_ShockWave(N, dt, n_tot, e, mu, alpha, L, num_cells, S, dx
     
 def plot_shockwave_profile(density, temp, mean_velocity, num_cells, L):
     """
-    Plot the shockwave profile showing density, temperature, and mean velocity.
-    Only plots the middle section from -4.5 to 4.5 of the full spatial domain.
-    
-    Parameters
-    ----------
-    density : array
-        Density values for each cell (length: num_cells)
-    temp : array
-        Temperature values for each cell (length: num_cells)
-    mean_velocity : array
-        Mean velocity values for each cell (shape: num_cells x 2)
-    num_cells : int
-        Number of cells in the spatial domain
-    L : float
-        Total length of the spatial domain
+    Plot the shockwave profile showing density, temperature, and mean velocity u_x.
+    Uses cell-center coordinates and displays only the middle [-4.5, 4.5] window.
     """
-    # Calculate the range we want to plot: [-4.5, 4.5]
-    plot_range = 9.0  # total range to plot
-    
-    # Calculate the start and end indices for the plotting range
-    # We want the middle 9 units centered at 0
-    start_pos = (L - plot_range) / 2  # This gives us the starting position
-    end_pos = start_pos + plot_range   # This gives us the ending position
-    
-    # Convert positions to cell indices
+    # --- cell-center x coordinates, symmetric about 0 ---
     cell_width = L / num_cells
-    start_idx = int(start_pos / cell_width)
-    end_idx = int(end_pos / cell_width)
-    
-    # Ensure indices are within bounds
-    start_idx = max(0, start_idx)
-    end_idx = min(num_cells, end_idx)
-    
-    # Extract the subset of data we want to plot
-    density_subset = density[start_idx:end_idx]
-    temp_subset = temp[start_idx:end_idx]
-    mean_velocity_subset = mean_velocity[start_idx:end_idx]
-    
-    # Create x-coordinates for the plotting range
-    x_coords = np.linspace(-4.5, 4.5, len(density_subset))
-    
-    # Create figure with three subplots
+    x_centers  = (np.arange(num_cells) + 0.5) * cell_width - 0.5 * L
+
+    # window to match the paper's view
+    x_min, x_max = -4.5, 4.5
+    window = (x_centers >= x_min) & (x_centers <= x_max)
+
+    xw      = x_centers[window]
+    dens_w  = density[window]
+    temp_w  = temp[window]
+    ux_w    = mean_velocity[window, 0]   # x-component only
+
+    # figure
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
-    
-    # Plot density
-    ax1.plot(x_coords, density_subset, 'b-', linewidth=2, marker='o', markersize=4)
-    ax1.set_xlabel('Position')
+
+    # --- Density ---
+    ax1.plot(xw, dens_w, 'b-', linewidth=2, marker='o', markersize=4)
+    ax1.set_xlim(x_min, x_max)
     ax1.set_ylabel('Density')
     ax1.set_title('Shockwave Density Profile')
     ax1.grid(True, alpha=0.3)
-    ax1.set_xlim(-4.5, 4.5)
-    
-    
 
-# Temperature panel (left ~4.75 to right ~1.0)
-    
-    # Plot temperature
-    ax2.plot(x_coords, temp_subset, 'r-', linewidth=2, marker='s', markersize=4)
-    ax2.set_xlabel('Position')
+    # --- Temperature ---
+    ax2.plot(xw, temp_w, 'r-', linewidth=2, marker='s', markersize=4)
+    ax2.set_xlim(x_min, x_max)
+    ax2.set_ylim(0.9, 4.9)  # paper-like scale
     ax2.set_ylabel('Temperature')
     ax2.set_title('Shockwave Temperature Profile')
     ax2.grid(True, alpha=0.3)
-    ax2.set_xlim(-4.5, 4.5)
-    ax2.set_ylim(0.9, 4.9)
-    
-   # Plot mean velocity u_x only (paper shows x-component; u_y ≈ 0)
-    ax3.plot(x_coords, mean_velocity_subset[:, 0], linewidth=2, marker='^', markersize=4)
+
+    # --- Mean velocity (u_x only) ---
+    ax3.plot(xw, ux_w, linewidth=2, marker='^', markersize=4)
+    ax3.set_xlim(x_min, x_max)
+    ax3.set_ylim(-4.5, -1.5)  # paper-like scale (γ=2, M=3)
     ax3.set_xlabel('Position')
     ax3.set_ylabel('Mean Velocity $u_x$')
     ax3.set_title('Shockwave Mean Velocity Profile')
-
-    # paper-like y-range (γ=2, M=3): u_x goes from about -1.7 (left) to -4.24 (right)
-    ax3.set_ylim(-4.5, -1.5)
-
     ax3.grid(True, alpha=0.3)
-    ax3.set_xlim(-4.5, 4.5)
-    
-    # Adjust layout and display
+
     plt.tight_layout()
-    
-    # Save the figure to data/figures directory
+
+    # save
     import os
     os.makedirs('../../data/figures', exist_ok=True)
-    plt.savefig('../../data/figures/shockwave_profile.png', dpi=300, bbox_inches='tight')
+    out_path = '../../data/figures/shockwave_profile.png'
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
     print("Figure saved as 'data/figures/shockwave_profile.png'")
-    
+
     plt.show()
-    
     return fig
 
-
-        
 
 
 
